@@ -1,0 +1,193 @@
+zabbix编译安装配置
+
+1、安装zabbix编译安装的依赖软件包
+[root@server ~]# yum install make gcc mysql-devel libxml2-devel net-snmp-devel libevent-devel curl-devel php-ldap php-gd php-bcmath php-mbstring php-xml php-mysql –y
+2、切换到zabbix源码包下载目录并解压到当前目录
+[root@server ~]# cd /opt/
+[root@server opt]# tar -zxvf zabbix-3.2.7.tar.gz
+3、创建zabbix用户与组
+[root@server opt]# groupadd zabbix
+[root@server opt]# useradd -g zabbix zabbix
+4、切换到zabbx _mysql数据库文件目录
+[root@server opt]# cd ./zabbix-3.2.7/database/mysql/
+[root@server mysql]# ls
+data.sql  images.sql  schema.sql
+5、连接mysql数据，创建zabbix数据库与用户以及授权
+[root@server mysql]# mysql -u root -p
+Enter password: 
+Welcome to the MariaDB monitor.  Commands end with ; or \g.
+Your MariaDB connection id is 9
+Server version: 5.5.56-MariaDB MariaDB Server
+
+Copyright (c) 2000, 2017, Oracle, MariaDB Corporation Ab and others.
+
+Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
+
+MariaDB [(none)]> create database zabbix character set utf8;
+Query OK, 1 row affected (0.02 sec)
+
+MariaDB [(none)]> grant all on zabbix.* to 'zabbix'@'%' identified by 'Gh@19910310!';
+Query OK, 0 rows affected (0.03 sec)
+
+MariaDB [(none)]> grant all on zabbix.* to 'zabbix'@'localhost' identified by 'Gh@19910310!';
+Query OK, 0 rows affected (0.00 sec)
+
+MariaDB [(none)]> flush privileges;
+Query OK, 0 rows affected (0.02 sec)
+#查看zabbix数据库是否创建成功
+MariaDB [(none)]> show databases;
++--------------------+
+| Database           |
++--------------------+
+| information_schema |
+| mysql              |
+| performance_schema |
+| zabbix             |
++--------------------+
+4 rows in set (0.06 sec)
+#查看zabbix用户
+MariaDB [(none)]> select host,user from mysql.user where user='zabbix';
++-----------+--------+
+| host      | user   |
++-----------+--------+
+| %         | zabbix |
+| localhost | zabbix |
++-----------+--------+
+2 rows in set (0.00 sec)
+
+MariaDB [(none)]> exit
+6、导入zabbix自带的数据库文件到自己创建zabbix数据库下
+[root@server mysql]# mysql -u zabbix -p zabbix < schema.sql
+Enter password: 
+[root@server mysql]# mysql -u zabbix -p zabbix < images.sql 
+Enter password: 
+[root@server mysql]# mysql -u zabbix -p zabbix < data.sql 
+Enter password: 
+[root@server mysql]# cd ../..
+7、编译安装zabbix
+[root@server zabbix-3.2.7]# ./configure --prefix=/opt/zabbix --enable-server --enable-agent --with-mysql --enable-ipv6 --with-net-snmp --with-libcurl --with-libxml2
+#出现以下信息表示zabbix编译配置正确
+Configuration:
+
+  Detected OS:           linux-gnu
+  Install path:          /opt/zabbix
+  Compilation arch:      linux
+
+  Compiler:              gcc
+  Compiler flags:         -g -O2
+
+  Library-specific flags:
+    database:               -I/usr/include/mysql   
+    libXML2:               -I/usr/include/libxml2
+    Net-SNMP:               -I/usr/local/include -I/usr/lib64/perl5/CORE -I. -I/usr/include
+
+  Enable server:         yes
+  Server details:
+    With database:         MySQL
+    WEB Monitoring:        cURL
+    Native Jabber:         no
+    SNMP:                  yes
+    IPMI:                  no
+    SSH:                   no
+    TLS:                   no
+    ODBC:                  no
+    Linker flags:             -L/usr/lib64/mysql        -L/usr/lib64      -rdynamic  
+    Libraries:               -lmysqlclient      -lxml2    -lnetsnmp      -lcurl -lm -ldl  -lresolv 
+
+  Enable proxy:          no
+
+  Enable agent:          yes
+  Agent details:
+    TLS:                   no
+    Linker flags:              -rdynamic  
+    Libraries:                 -lcurl -lm -ldl  -lresolv 
+
+  Enable Java gateway:   no
+
+  LDAP support:          no
+  IPv6 support:          yes
+
+***********************************************************
+*            Now run 'make install'                       *
+*                                                         *
+*            Thank you for using Zabbix!                  *
+*              <http://www.zabbix.com>                    *
+***********************************************************
+8、执行make install完成zabbix编译安装
+[root@server zabbix-3.2.7]# make && make install
+9、修改zabbix_server配置文件
+[root@server zabbix-3.2.7]# vi ../zabbix/etc/zabbix_server.conf
+DBName=zabbix
+DBUser=zabbix
+DBPassword=Gh@19910310!
+10、拷贝zabbix_agentd与zabbix_server启动脚本到/etc/init.d目录下
+[root@server zabbix-3.2.7]# cd ./misc/init.d/fedora/core
+[root@server core]# ls
+zabbix_agentd  zabbix_server
+[root@server core]# cp ./* /etc/init.d/
+11、修改zabbix_agentd与zabbix_server启动脚本文件
+[root@server core]# cd /etc/init.d/
+[root@server init.d]# vi zabbix_server
+BASEDIR=/opt/zabbix   #修改为编译安装zabbix安装目录
+[root@server init.d]# vi zabbix_agentd
+BASEDIR=/opt/zabbix   #修改为编译安装zabbix安装目录
+12、启动zabbix_server与zabbix_agentd服务并加入到开机启动
+[root@server init.d]# service zabbix_server start
+Reloading systemd:                                         [  OK  ]
+Starting zabbix_server (via systemctl):                    [  OK  ]
+[root@server init.d]# chkconfig zabbix_server on
+[root@server init.d]# service zabbix_agentd start
+Starting zabbix_agentd (via systemctl):                    [  OK  ]
+[root@server init.d]# chkconfig zabbix_agentd on
+13、检查zabbix_server与zabbix_agentd服务是否运行正常
+[root@server init.d]# ps -ef | grep -E "(zabbix_server|zabbix_agentd)" 
+zabbix    20413      1  0 17:52 ?        00:00:00 /opt/zabbix/sbin/zabbix_server
+zabbix    20419  20413  0 17:52 ?        00:00:00 /opt/zabbix/sbin/zabbix_server: configuration syncer [synced configuration in 0.014843 sec, idle 60 sec]
+zabbix    20420  20413  0 17:52 ?        00:00:00 /opt/zabbix/sbin/zabbix_server: db watchdog [synced alerts config in 0.018734 sec, idle 60 sec]
+zabbix    20421  20413  0 17:52 ?        00:00:00 /opt/zabbix/sbin/zabbix_server: poller #1 [got 0 values in 0.000008 sec, idle 5 sec]
+zabbix    20422  20413  0 17:52 ?        00:00:00 /opt/zabbix/sbin/zabbix_server: poller #2 [got 0 values in 0.000012 sec, idle 5 sec]
+zabbix    20423  20413  0 17:52 ?        00:00:00 /opt/zabbix/sbin/zabbix_server: poller #3 [got 0 values in 0.000008 sec, idle 5 sec]
+zabbix    20424  20413  0 17:52 ?        00:00:00 /opt/zabbix/sbin/zabbix_server: poller #4 [got 0 values in 0.000008 sec, idle 5 sec]
+zabbix    20425  20413  0 17:52 ?        00:00:00 /opt/zabbix/sbin/zabbix_server: poller #5 [got 0 values in 0.000007 sec, idle 5 sec]
+zabbix    20426  20413  0 17:52 ?        00:00:00 /opt/zabbix/sbin/zabbix_server: unreachable poller #1 [got 0 values in 0.000007 sec, idle 5 sec]
+zabbix    20427  20413  0 17:52 ?        00:00:00 /opt/zabbix/sbin/zabbix_server: trapper #1 [processed data in 0.000000 sec, waiting for connection]
+zabbix    20428  20413  0 17:52 ?        00:00:00 /opt/zabbix/sbin/zabbix_server: trapper #2 [processed data in 0.000000 sec, waiting for connection]
+zabbix    20429  20413  0 17:52 ?        00:00:00 /opt/zabbix/sbin/zabbix_server: trapper #3 [processed data in 0.000000 sec, waiting for connection]
+zabbix    20430  20413  0 17:52 ?        00:00:00 /opt/zabbix/sbin/zabbix_server: trapper #4 [processed data in 0.000000 sec, waiting for connection]
+zabbix    20431  20413  0 17:52 ?        00:00:00 /opt/zabbix/sbin/zabbix_server: trapper #5 [processed data in 0.001216 sec, waiting for connection]
+zabbix    20432  20413  0 17:52 ?        00:00:00 /opt/zabbix/sbin/zabbix_server: icmp pinger #1 [got 0 values in 0.000007 sec, idle 5 sec]
+zabbix    20433  20413  0 17:52 ?        00:00:00 /opt/zabbix/sbin/zabbix_server: alerter [sent alerts: 0 success, 0 fail in 0.002477 sec, idle 30 sec]
+zabbix    20434  20413  0 17:52 ?        00:00:00 /opt/zabbix/sbin/zabbix_server: housekeeper [startup idle for 30 minutes]
+zabbix    20435  20413  0 17:52 ?        00:00:00 /opt/zabbix/sbin/zabbix_server: timer #1 [processed 0 triggers, 0 events in 0.000069 sec, 0 maintenances in 0.002837 sec, idle 30
+zabbix    20436  20413  0 17:52 ?        00:00:00 /opt/zabbix/sbin/zabbix_server: http poller #1 [got 0 values in 0.002236 sec, idle 5 sec]
+zabbix    20437  20413  0 17:52 ?        00:00:00 /opt/zabbix/sbin/zabbix_server: discoverer #1 [processed 0 rules in 0.001463 sec, idle 60 sec]
+zabbix    20438  20413  0 17:52 ?        00:00:00 /opt/zabbix/sbin/zabbix_server: history syncer #1 [synced 0 items in 0.000003 sec, idle 1 sec]
+zabbix    20439  20413  0 17:52 ?        00:00:00 /opt/zabbix/sbin/zabbix_server: history syncer #2 [synced 0 items in 0.000001 sec, idle 1 sec]
+zabbix    20440  20413  0 17:52 ?        00:00:00 /opt/zabbix/sbin/zabbix_server: history syncer #3 [synced 0 items in 0.000002 sec, idle 1 sec]
+zabbix    20441  20413  0 17:52 ?        00:00:00 /opt/zabbix/sbin/zabbix_server: history syncer #4 [synced 0 items in 0.000002 sec, idle 1 sec]
+zabbix    20455  20413  0 17:52 ?        00:00:00 /opt/zabbix/sbin/zabbix_server: escalator #1 [processed 0 escalations in 0.001771 sec, idle 3 sec]
+zabbix    20456  20413  0 17:52 ?        00:00:00 /opt/zabbix/sbin/zabbix_server: proxy poller #1 [exchanged data with 0 proxies in 0.000004 sec, idle 5 sec]
+zabbix    20457  20413  0 17:52 ?        00:00:00 /opt/zabbix/sbin/zabbix_server: self-monitoring [processed data in 0.000010 sec, idle 1 sec]
+zabbix    20458  20413  0 17:52 ?        00:00:00 /opt/zabbix/sbin/zabbix_server: task manager [processed 0 task(s) in 0.001474 sec, idle 5 sec]
+zabbix    20528      1  0 17:53 ?        00:00:00 /opt/zabbix/sbin/zabbix_agentd
+zabbix    20529  20528  0 17:53 ?        00:00:00 /opt/zabbix/sbin/zabbix_agentd: collector [idle 1 sec]
+zabbix    20530  20528  0 17:53 ?        00:00:00 /opt/zabbix/sbin/zabbix_agentd: listener #1 [waiting for connection]
+zabbix    20531  20528  0 17:53 ?        00:00:00 /opt/zabbix/sbin/zabbix_agentd: listener #2 [waiting for connection]
+zabbix    20532  20528  0 17:53 ?        00:00:00 /opt/zabbix/sbin/zabbix_agentd: listener #3 [waiting for connection]
+zabbix    20533  20528  0 17:53 ?        00:00:00 /opt/zabbix/sbin/zabbix_agentd: active checks #1 [idle 1 sec]
+root      20572   2201  0 17:55 pts/0    00:00:00 grep --color=auto -E (zabbix_server|zabbix_agentd)
+14、在Apache放置web目录下创建zabbix文件夹
+[root@server 2]# mkdir zabbix
+[root@server 2]# cd -
+/etc/init.d
+15、拷贝php文件到Apache放置web目录zabbix目录下
+[root@server init.d]# cd /opt/zabbix-3.2.7/frontends/php
+[root@server php]# cp -a . /opt/wwwroot/2/zabbix/
+16、如果出现浏览器不能正常访问web页面，使用chown命令授权apache所有组与所属组
+[root@server ~]# chown -R apache:apache /opt/wwwroot/2/zabbix/
+17、修改php配置文件
+[root@server ~]# vi /etc/php.ini
+post_max_size = 16M
+max_execution_time = 300
+max_input_time = 300
+date.timezone = Asia/Shanghai
