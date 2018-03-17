@@ -1,7 +1,7 @@
 zabbix编译安装配置
 
-1、安装zabbix编译安装的依赖软件包
-[root@server ~]# yum install make gcc mysql-devel libxml2-devel net-snmp-devel libevent-devel curl-devel php-ldap php-gd php-bcmath php-mbstring php-xml php-mysql –y
+如图1所示，安装ZABBIX依赖软件包
+[root @ server〜] #yum install make gcc mysql-devel libxml2-devel net-snmp-devel libevent-devel curl-devel php-ldap php -bpmath php-mbstring php-xml php-mysql -y
 2、切换到zabbix源码包下载目录并解压到当前目录
 [root@server ~]# cd /opt/
 [root@server opt]# tar -zxvf zabbix-3.2.7.tar.gz
